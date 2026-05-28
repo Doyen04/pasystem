@@ -6,6 +6,13 @@ let analyserNode = null;
 let gainNode = null;
 let animFrameId = null;
 let isLive = false;
+let lastFrequencyMax = 0;
+let smoothingFactor = 0.85;
+
+// ============ VU Meter Constants ============
+const BAR_COUNT = 34;
+const frequencyData = new Uint8Array(256);
+const smoothedFrequencyData = new Array(BAR_COUNT).fill(0);
 
 // ============ UI Elements ============
 const micButton = document.getElementById('micButton');
@@ -29,21 +36,27 @@ function setupCanvasDPR() {
     vuCanvas.width = width * dpr;
     vuCanvas.height = height * dpr;
     vuCtx.scale(dpr, dpr);
+    // Redraw placeholder if not live
+    if (!isLive) {
+        drawVUMeter(false);
+    }
 }
 
 setupCanvasDPR();
-window.addEventListener('resize', setupCanvasDPR);
+window.addEventListener('resize', () => {
+    requestAnimationFrame(setupCanvasDPR);
+});
 
 // ============ VU Meter Drawing ============
-const BAR_COUNT = 34;
-const frequencyData = new Uint8Array(256);
-
 function drawVUMeter(isActive) {
     const width = vuCanvas.offsetWidth;
     const height = vuCanvas.offsetHeight;
 
-    // Clear canvas
-    vuCtx.fillStyle = '#0a0a0a';
+    // Clear canvas with subtle gradient
+    const gradient = vuCtx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, '#0a0a0a');
+    gradient.addColorStop(1, '#0d0d0d');
+    vuCtx.fillStyle = gradient;
     vuCtx.fillRect(0, 0, width, height);
 
     if (!analyserNode || !isActive) {
@@ -65,24 +78,50 @@ function drawBars(isPlaceholder) {
     const step = Math.floor(bufferLength / BAR_COUNT);
 
     for (let i = 0; i < BAR_COUNT; i++) {
-        const value = isPlaceholder ? 0.15 : frequencyData[i * step] / 255;
+        let value;
+        if (isPlaceholder) {
+            value = 0.12;
+        } else {
+            const rawValue = frequencyData[i * step] / 255;
+            smoothedFrequencyData[i] = smoothedFrequencyData[i] * smoothingFactor + rawValue * (1 - smoothingFactor);
+            value = smoothedFrequencyData[i];
+        }
+
         const barHeight = value * height;
 
-        // Determine color
+        // Determine color with smoother transitions
         let color;
         if (isPlaceholder) {
-            color = '#333';
+            color = 'rgba(80, 80, 80, 0.4)';
+        } else if (value < 0.3) {
+            // Deep green
+            color = 'rgb(46, 164, 79)';
         } else if (value < 0.5) {
-            color = 'rgb(46, 164, 79)'; // green
+            // Green to amber transition
+            const t = (value - 0.3) / 0.2;
+            const r = Math.round(46 + (186 - 46) * t);
+            const g = Math.round(164 + (117 - 164) * t);
+            const b = Math.round(79 + (23 - 79) * t);
+            color = `rgb(${r}, ${g}, ${b})`;
         } else if (value < 0.82) {
-            color = 'rgb(186, 117, 23)'; // amber
+            // Amber
+            color = 'rgb(186, 117, 23)';
         } else {
-            color = 'rgb(226, 75, 74)'; // red
+            // Amber to red transition
+            const t = (value - 0.82) / 0.18;
+            const r = Math.round(186 + (226 - 186) * t);
+            const g = Math.round(117 + (75 - 117) * t);
+            const b = Math.round(23 + (74 - 23) * t);
+            color = `rgb(${r}, ${g}, ${b})`;
         }
 
         vuCtx.fillStyle = color;
-        vuCtx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+        vuCtx.shadowColor = isPlaceholder ? 'transparent' : color.replace('rgb', 'rgba').replace(')', ', 0.3)');
+        vuCtx.shadowBlur = isPlaceholder ? 0 : 4;
+        vuCtx.fillRect(i * barWidth, height - barHeight, barWidth - 1.5, barHeight);
     }
+
+    vuCtx.shadowColor = 'transparent';
 }
 
 // ============ Animation Loop ============
@@ -121,8 +160,19 @@ function updateWarningVisibility() {
 function showError(message) {
     errorBox.textContent = message;
     errorBox.classList.add('show');
-    setTimeout(() => {
-        errorBox.classList.remove('show');
+    
+    // Fade out after delay
+    const fadeOutTimeout = setTimeout(() => {
+        errorBox.style.opacity = '0';
+        errorBox.style.transform = 'translateY(-8px)';
+        
+        const removeTimeout = setTimeout(() => {
+            errorBox.classList.remove('show');
+            errorBox.style.opacity = '1';
+            errorBox.style.transform = 'translateY(0)';
+        }, 300);
+        
+        return removeTimeout;
     }, 5000);
 }
 
