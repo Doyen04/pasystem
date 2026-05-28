@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PA / monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #0a0a0a;
+            color: #d4c9b5;
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+        }
+
+        .app-name {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        /* Status Pill */
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background-color: #141414;
+            border: 1px solid #222;
+            border-radius: 20px;
+            padding: 8px 14px;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #555;
+            transition: background-color 0.3s;
+        }
+
+        .status-pill.live .status-dot {
+            background-color: #e24b4a;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* VU Meter */
+        .vu-container {
+            background-color: #141414;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 12px;
+            width: 100%;
+            height: 120px;
+        }
+
+        .vu-meter-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Central Button Container */
+        .button-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px 0;
+        }
+
+        .mic-button {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background-color: #141414;
+            border: 3px solid #555;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: #d4c9b5;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+        }
+
+        .mic-button::before {
+            content: '🎤';
+            font-size: 48px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.3s;
+        }
+
+        .mic-button.live {
+            border-color: #e24b4a;
+            box-shadow: 0 0 20px rgba(226, 75, 74, 0.3);
+        }
+
+        .mic-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        .mic-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .mic-label {
+            position: absolute;
+            bottom: 10px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Controls Panel */
+        .controls {
+            background-color: #141414;
+            border: 1px solid #222;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .control-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #d4c9b5;
+            min-width: 120px;
+        }
+
+        /* Volume Slider */
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        input[type="range"] {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: linear-gradient(to right, #2ea44f 0%, #ba7517 50%, #e24b4a 100%);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #d4c9b5;
+            cursor: pointer;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #d4c9b5;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .volume-value {
+            font-size: 13px;
+            min-width: 35px;
+            text-align: right;
+            color: #555;
+        }
+
+        /* Toggle Switch */
+        .toggle-container {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            display: inline-block;
+        }
+
+        .toggle-container input {
+            opacity: 0;
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        .toggle-track {
+            position: absolute;
+            inset: 0;
+            background-color: #555;
+            border-radius: 11px;
+            transition: background-color 0.3s;
+            pointer-events: none;
+        }
+
+        .toggle-container input:checked + .toggle-track {
+            background-color: #2ea44f;
+        }
+
+        .toggle-thumb {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 18px;
+            height: 18px;
+            background-color: #d4c9b5;
+            border-radius: 50%;
+            transition: left 0.3s;
+            pointer-events: none;
+        }
+
+        .toggle-container input:checked + .toggle-track .toggle-thumb {
+            left: 20px;
+        }
+
+        /* Warnings and Errors */
+        .warning-box, .error-box {
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 12px;
+            line-height: 1.5;
+            display: none;
+            margin-bottom: 12px;
+        }
+
+        .warning-box {
+            background-color: rgba(186, 117, 23, 0.15);
+            border: 1px solid rgba(186, 117, 23, 0.5);
+            color: rgb(186, 117, 23);
+        }
+
+        .warning-box.show {
+            display: block;
+        }
+
+        .error-box {
+            background-color: rgba(226, 75, 74, 0.15);
+            border: 1px solid rgba(226, 75, 74, 0.5);
+            color: rgb(226, 75, 74);
+        }
+
+        .error-box.show {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 480px) {
+            body {
+                padding: 16px;
+                gap: 16px;
+            }
+
+            .control-row {
+                flex-wrap: wrap;
+            }
+
+            .volume-control {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="app-name">PA / monitor</div>
+        <div class="status-pill">
+            <div class="status-dot"></div>
+            <span class="status-text">standby</span>
+        </div>
+    </div>
+
+    <!-- Error Box -->
+    <div class="error-box" id="errorBox"></div>
+
+    <!-- VU Meter -->
+    <div class="vu-container">
+        <canvas class="vu-meter-canvas" id="vuMeter"></canvas>
+    </div>
+
+    <!-- Central Mic Button -->
+    <div class="button-container">
+        <button class="mic-button" id="micButton" aria-label="Toggle broadcast">
+            <span class="mic-label">broadcast</span>
+        </button>
+    </div>
+
+    <!-- Feedback Warning -->
+    <div class="warning-box" id="warningBox">
+        ⚠️ Feedback risk — echo cancel is off. Use Bluetooth or headphones.
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls">
+        <!-- Volume Control -->
+        <div class="control-row">
+            <label class="control-label">Volume</label>
+            <div class="volume-control">
+                <input type="range" id="volumeSlider" min="0" max="200" value="100">
+                <span class="volume-value"><span id="volumeValue">100</span>%</span>
+            </div>
+        </div>
+
+        <!-- Echo Cancel Toggle -->
+        <div class="control-row">
+            <label class="control-label">Echo cancel</label>
+            <div class="toggle-container">
+                <input type="checkbox" id="echoCancelToggle" checked>
+                <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                </span>
+            </div>
+        </div>
+
+        <!-- Noise Suppress Toggle -->
+        <div class="control-row">
+            <label class="control-label">Noise suppress</label>
+            <div class="toggle-container">
+                <input type="checkbox" id="noiseSuppressToggle">
+                <span class="toggle-track">
+                    <span class="toggle-thumb"></span>
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ State Management ============
+        let audioCtx = null;
+        let mediaStream = null;
+        let sourceNode = null;
+        let analyserNode = null;
+        let gainNode = null;
+        let animFrameId = null;
+        let isLive = false;
+
+        // ============ UI Elements ============
+        const micButton = document.getElementById('micButton');
+        const statusPill = document.querySelector('.status-pill');
+        const statusText = document.querySelector('.status-text');
+        const statusDot = document.querySelector('.status-dot');
+        const vuCanvas = document.getElementById('vuMeter');
+        const vuCtx = vuCanvas.getContext('2d');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        const echoCancelToggle = document.getElementById('echoCancelToggle');
+        const noiseSuppressToggle = document.getElementById('noiseSuppressToggle');
+        const warningBox = document.getElementById('warningBox');
+        const errorBox = document.getElementById('errorBox');
+
+        // ============ Canvas Setup ============
+        function setupCanvasDPR() {
+            const dpr = window.devicePixelRatio || 1;
+            const width = vuCanvas.offsetWidth;
+            const height = vuCanvas.offsetHeight;
+            vuCanvas.width = width * dpr;
+            vuCanvas.height = height * dpr;
+            vuCtx.scale(dpr, dpr);
+        }
+
+        setupCanvasDPR();
+        window.addEventListener('resize', setupCanvasDPR);
+
+        // ============ VU Meter Drawing ============
+        const BAR_COUNT = 34;
+        const frequencyData = new Uint8Array(256);
+
+        function drawVUMeter(isActive) {
+            const width = vuCanvas.offsetWidth;
+            const height = vuCanvas.offsetHeight;
+
+            // Clear canvas
+            vuCtx.fillStyle = '#0a0a0a';
+            vuCtx.fillRect(0, 0, width, height);
+
+            if (!analyserNode || !isActive) {
+                // Draw faint placeholder bars
+                drawBars(true);
+                return;
+            }
+
+            // Get frequency data
+            analyserNode.getByteFrequencyData(frequencyData);
+            drawBars(false);
+        }
+
+        function drawBars(isPlaceholder) {
+            const width = vuCanvas.offsetWidth;
+            const height = vuCanvas.offsetHeight;
+            const barWidth = width / BAR_COUNT;
+            const bufferLength = frequencyData.length;
+            const step = Math.floor(bufferLength / BAR_COUNT);
+
+            for (let i = 0; i < BAR_COUNT; i++) {
+                const value = isPlaceholder ? 0.15 : frequencyData[i * step] / 255;
+                const barHeight = value * height;
+
+                // Determine color
+                let color;
+                if (isPlaceholder) {
+                    color = '#333';
+                } else if (value < 0.5) {
+                    color = 'rgb(46, 164, 79)'; // green
+                } else if (value < 0.82) {
+                    color = 'rgb(186, 117, 23)'; // amber
+                } else {
+                    color = 'rgb(226, 75, 74)'; // red
+                }
+
+                vuCtx.fillStyle = color;
+                vuCtx.fillRect(i * barWidth, height - barHeight, barWidth - 1, barHeight);
+            }
+        }
+
+        // ============ Animation Loop ============
+        function animateVU() {
+            drawVUMeter(isLive);
+            animFrameId = requestAnimationFrame(animateVU);
+        }
+
+        // ============ UI Updates ============
+        function updateStatusPill() {
+            if (isLive) {
+                statusPill.classList.add('live');
+                statusText.textContent = 'live';
+            } else {
+                statusPill.classList.remove('live');
+                statusText.textContent = 'standby';
+            }
+        }
+
+        function updateMicButton() {
+            const label = micButton.querySelector('.mic-label');
+            if (isLive) {
+                micButton.classList.add('live');
+                label.textContent = 'on air';
+            } else {
+                micButton.classList.remove('live');
+                label.textContent = 'broadcast';
+            }
+        }
+
+        function updateWarningVisibility() {
+            const showWarning = isLive && !echoCancelToggle.checked;
+            warningBox.classList.toggle('show', showWarning);
+        }
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.add('show');
+            setTimeout(() => {
+                errorBox.classList.remove('show');
+            }, 5000);
+        }
+
+        // ============ Audio Setup ============
+        async function startBroadcast() {
+            try {
+                // Create AudioContext if needed
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+                        latencyHint: 'interactive'
+                    });
+                }
+
+                // Resume if suspended
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+
+                // Get constraints
+                const audioConstraints = {
+                    echoCancellation: echoCancelToggle.checked,
+                    noiseSuppression: noiseSuppressToggle.checked,
+                    autoGainControl: false
+                };
+
+                // Get user media
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: audioConstraints
+                });
+
+                // Create nodes
+                sourceNode = audioCtx.createMediaStreamSource(mediaStream);
+                analyserNode = audioCtx.createAnalyser();
+                gainNode = audioCtx.createGain();
+
+                // Set analyser FFT size
+                analyserNode.fftSize = 512;
+
+                // Set initial gain
+                gainNode.gain.value = volumeSlider.value / 100;
+
+                // Connect: source -> analyser & source -> gain -> destination
+                sourceNode.connect(analyserNode);
+                sourceNode.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                // Update UI
+                isLive = true;
+                updateStatusPill();
+                updateMicButton();
+                updateWarningVisibility();
+                micButton.disabled = false;
+
+                // Start animation loop
+                animateVU();
+
+            } catch (error) {
+                isLive = false;
+                updateStatusPill();
+                updateMicButton();
+                micButton.disabled = false;
+
+                // Show appropriate error
+                if (error.name === 'NotAllowedError') {
+                    showError('Microphone permission denied. Please allow access to use PA system.');
+                } else if (error.name === 'NotFoundError') {
+                    showError('No microphone found. Please connect a microphone and try again.');
+                } else {
+                    showError(`Error: ${error.message}`);
+                }
+
+                console.error('Broadcast error:', error);
+            }
+        }
+
+        function stopBroadcast() {
+            // Stop animation
+            if (animFrameId) {
+                cancelAnimationFrame(animFrameId);
+                animFrameId = null;
+            }
+
+            // Stop all tracks
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+
+            // Close audio context
+            if (audioCtx) {
+                audioCtx.close();
+                audioCtx = null;
+            }
+
+            // Clear nodes
+            sourceNode = null;
+            analyserNode = null;
+            gainNode = null;
+
+            // Update UI
+            isLive = false;
+            updateStatusPill();
+            updateMicButton();
+            updateWarningVisibility();
+            micButton.disabled = false;
+
+            // Draw placeholder bars
+            drawVUMeter(false);
+        }
+
+        // ============ Event Listeners ============
+        micButton.addEventListener('click', async () => {
+            micButton.disabled = true;
+            if (isLive) {
+                stopBroadcast();
+            } else {
+                await startBroadcast();
+            }
+        });
+
+        volumeSlider.addEventListener('input', () => {
+            const value = volumeSlider.value;
+            volumeValue.textContent = value;
+            if (gainNode) {
+                gainNode.gain.value = value / 100;
+            }
+        });
+
+        echoCancelToggle.addEventListener('change', () => {
+            updateWarningVisibility();
+        });
+
+        // ============ Initial Draw ============
+        drawVUMeter(false);
+    </script>
+</body>
+</html>
